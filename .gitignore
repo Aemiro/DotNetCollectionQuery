@@ -1,0 +1,60 @@
+################################################################################
+# IDE and Editor-specific Files
+################################################################################
+# Visual Studio
+.vs
+.suo
+.user
+.bak
+.ncb
+.scc
+.vspscc
+
+# Visual Studio Code
+.vscode
+
+# JetBrains Rider
+.idea
+.sln.DotSettings
+.user.DotSettings
+
+################################################################################
+# Build and Temporary Output
+################################################################################
+[Bb]in
+[Oo]bj
+[Dd]ebug
+[Rr]elease
+
+# Package Management (NuGet)
+.nupkg
+packages
+project.lock.json
+.lock.json
+
+# Test results
+TestResults
+.trx
+
+################################################################################
+# Log Files and User Configuration
+################################################################################
+# Log files
+.log
+[Ll]ogs
+log
+
+# User-specific settings (should not be in source control)
+appsettings.json.user
+appsettings.Development.json
+appsettings.Staging.json
+appsettings.Production.json
+
+################################################################################
+# Miscellaneous
+################################################################################
+.DS_Store # Mac OS folder metadata
+[Tt]humbs.db # Windows thumbnail cache
+.pdb # Program Database files
+.tmp # Temporary files
+.slog # SonarLint logs
