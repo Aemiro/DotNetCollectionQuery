@@ -5,15 +5,34 @@ using System.Reflection;
 
 namespace CollectionQuery
 {
+    /// <summary>
+    /// Applies <see cref="CollectionQuery"/> to an EF Core <see cref="IQueryable{T}"/>: filters, search, includes,
+    /// ordering, distinct/group semantics, then counts and pages. Results are projected to
+    /// <see cref="IDictionary{TKey,TValue}"/> rows keyed by select paths or property names.
+    /// </summary>
     public class CollectionQueryService
     {
         private readonly CollectionQueryOptions _options;
 
+        /// <summary>Creates a service instance with optional behavior overrides.</summary>
+        /// <param name="options">Null uses <see cref="CollectionQueryOptions"/> defaults.</param>
         public CollectionQueryService(CollectionQueryOptions? options = null)
         {
             _options = options ?? new CollectionQueryOptions();
         }
 
+        /// <summary>
+        /// Executes the query: applies <paramref name="query"/> to <paramref name="source"/>, computes total count,
+        /// and returns either a count-only object or a <see cref="PagedResult{T}"/> of dictionary rows.
+        /// </summary>
+        /// <typeparam name="TEntity">EF entity type (reference type).</typeparam>
+        /// <param name="source">Base query, typically from <c>DbSet&lt;TEntity&gt;</c>.</param>
+        /// <param name="query">Paging, filtering, and projection instructions.</param>
+        /// <param name="ct">Cancellation token.</param>
+        /// <returns>
+        /// When <see cref="CollectionQuery.Count"/> is true, an anonymous object <c>{ Count = int }</c>;
+        /// otherwise <see cref="PagedResult{T}"/> with <c>T = </c><see cref="IDictionary{TKey,TValue}"/>.
+        /// </returns>
         public async Task<object> QueryAsync<TEntity>(
             IQueryable<TEntity> source,
             CollectionQuery query,
@@ -33,13 +52,11 @@ namespace CollectionQuery
             var pageNumber = (skip / pageSize) + 1;
 
             // 3️⃣ Fetch page
-            // if the includes count more than 2 the use AsSplitQuery to avoid cartesian explosion, but it will execute one query per include, so use it only when necessary
                 if (query.Includes != null && query.Includes.Count > 2)
                 {
                     source = source.AsSplitQuery();
                 }
                 var page = await source.Skip(skip).Take(pageSize).ToListAsync(ct);
-            // var page = await source.Skip(skip).Take(pageSize).ToListAsync(ct);
 
             // 4️⃣ Project to dynamic dictionary in-memory
             var preserveBackReferences = IncludesPastEfTruncation(typeof(TEntity), query.Includes);

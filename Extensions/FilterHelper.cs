@@ -4,8 +4,17 @@ using System.Reflection;
 
 namespace CollectionQuery.Extensions
 {
+    /// <summary>Builds LINQ expression predicates for filtering, search, ordering, distinct-on, and group-by helpers.</summary>
     public static class FilterHelper
     {
+        /// <summary>
+        /// ANDs OR-groups from <paramref name="andGroups"/> into a single <c>Where</c> predicate on <paramref name="source"/>.
+        /// </summary>
+        /// <typeparam name="TEntity">Entity type.</typeparam>
+        /// <param name="source">Query to filter.</param>
+        /// <param name="andGroups">CNF filter structure (see <see cref="CollectionQuery.Filter"/>).</param>
+        /// <param name="useProviderILike">When true, uses case-insensitive LIKE where implemented for LIKE/ILIKE operators.</param>
+        /// <returns>The filtered queryable.</returns>
         public static IQueryable<TEntity> ApplyFilters<TEntity>(
             IQueryable<TEntity> source, List<List<FilterItem>> andGroups, bool useProviderILike) where TEntity : class
         {
@@ -51,6 +60,15 @@ namespace CollectionQuery.Extensions
             return source;
         }
 
+        /// <summary>
+        /// Adds a <c>Where</c> that ORs <c>EF.Functions.Like</c> across each string-compatible path in <paramref name="fields"/>.
+        /// </summary>
+        /// <typeparam name="TEntity">Entity type.</typeparam>
+        /// <param name="source">Query to search.</param>
+        /// <param name="fields">Property paths to OR together.</param>
+        /// <param name="term">Substring matched with wildcards (<c>%term%</c>).</param>
+        /// <param name="providerILike">Reserved for provider-specific case folding; LIKE path is always used here.</param>
+        /// <returns>The filtered queryable.</returns>
         public static IQueryable<TEntity> ApplySearch<TEntity>(
             IQueryable<TEntity> source, IEnumerable<string> fields, string term, bool providerILike)
             where TEntity : class
@@ -72,6 +90,11 @@ namespace CollectionQuery.Extensions
             return or == null ? source : source.Where(Expression.Lambda<Func<TEntity, bool>>(or, param));
         }
 
+        /// <summary>Applies stable multi-key ordering using dynamically constructed LINQ <c>OrderBy</c> / <c>ThenBy</c> (and descending variants).</summary>
+        /// <typeparam name="TEntity">Entity type.</typeparam>
+        /// <param name="source">Query to sort.</param>
+        /// <param name="orders">Non-empty list of field/direction pairs.</param>
+        /// <returns>Ordered queryable, or <paramref name="source"/> if <paramref name="orders"/> is empty.</returns>
         public static IQueryable<TEntity> ApplyOrdering<TEntity>(IQueryable<TEntity> source, List<Order> orders)
     where TEntity : class
         {
@@ -192,6 +215,11 @@ namespace CollectionQuery.Extensions
             if (t.IsEnum) return Enum.Parse(t, v.ToString()!, true);
             return Convert.ChangeType(v, t);
         }
+
+        /// <summary>
+        /// DISTINCT ON helper: single-field paths use translated SQL; multiple fields may fall back to client evaluation.
+        /// Prefer <see cref="DistinctHelper.ApplyDistinctOn{TEntity}"/> for multi-field server-side grouping when possible.
+        /// </summary>
         public static IQueryable<TEntity> ApplyDistinctOn<TEntity>(
     this IQueryable<TEntity> source,
     List<string>? distinctOn)
@@ -229,6 +257,10 @@ namespace CollectionQuery.Extensions
 
             return source;
         }
+
+        /// <summary>
+        /// Collapses rows to the first per group keyed by <paramref name="fields"/> (single-field SQL, multi-field may client-evaluate).
+        /// </summary>
         public static IQueryable<TEntity> ApplyGroupBy<TEntity>(IQueryable<TEntity> source, IEnumerable<string> fields)
         {
             if (fields == null || !fields.Any())
@@ -258,7 +290,12 @@ namespace CollectionQuery.Extensions
 
         private static Expression Promote(Expression left, Type to) => left.Type == to ? left : Expression.Convert(left, to);
 
-        // Project entire object to dictionary
+        /// <summary>Materializes <paramref name="source"/> to dictionaries of property name → value.</summary>
+        /// <typeparam name="T">Element type.</typeparam>
+        /// <param name="source">Rows to project.</param>
+        /// <param name="includeFields">When set, restricts which properties are copied.</param>
+        /// <param name="allowedFields">When set, only properties in this set are eligible.</param>
+        /// <returns>List of shallow property dictionaries.</returns>
         public static List<Dictionary<string, object?>> ProjectToDictionaries<T>(
             IEnumerable<T> source,
             List<string>? includeFields = null,
@@ -286,7 +323,12 @@ namespace CollectionQuery.Extensions
 
             return list;
         }
-        // Dynamic projection: select only requested fields
+
+        /// <summary>Projects each element to a dictionary containing only <paramref name="selectFields"/>.</summary>
+        /// <typeparam name="T">Element type.</typeparam>
+        /// <param name="source">Rows to project.</param>
+        /// <param name="selectFields">Property names to include (top-level only).</param>
+        /// <param name="allowedFields">When set, only names in this set are copied.</param>
         public static List<Dictionary<string, object?>> SelectDynamic<T>(
             IEnumerable<T> source,
             List<string> selectFields,

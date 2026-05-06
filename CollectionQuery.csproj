@@ -4,6 +4,9 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Demo controllers/DTOs are not part of the documented query API; library types use XML comments. -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
     <UserSecretsId>a28150c3-12ba-4b26-bb22-4f2c860cacaf</UserSecretsId>
   </PropertyGroup>
 

@@ -3,8 +3,17 @@ using System.Reflection;
 
 namespace CollectionQuery.Extensions
 {
+    /// <summary>EF-translatable projection to string-keyed dictionaries.</summary>
     public static class DynamicSelectExtensions
     {
+        /// <summary>
+        /// Builds an expression tree that constructs a <see cref="Dictionary{TKey,TValue}"/> per row with the requested keys.
+        /// </summary>
+        /// <typeparam name="TEntity">Source entity type.</typeparam>
+        /// <param name="source">Query to project.</param>
+        /// <param name="fields">Property paths (dot-separated); null means all public instance properties on <typeparamref name="TEntity"/>.</param>
+        /// <param name="allowedFields">Optional intersection filter for field names.</param>
+        /// <returns>Queryable of dictionaries (still composable until executed).</returns>
         public static IQueryable<IDictionary<string, object?>> SelectDynamic<TEntity>(
             this IQueryable<TEntity> source,
             IEnumerable<string> fields,
