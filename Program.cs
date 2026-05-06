@@ -1,4 +1,5 @@
 using CollectionQuery;
+using CollectionQuery.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 var builder = WebApplication.CreateBuilder(args);
@@ -13,7 +14,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.WriteIndented = true;
     });
 builder.Services.AddDbContext<BlogDbContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -46,4 +47,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 // Use Hangfire Dashboard
+
+// Run data seeder on startup
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var db = services.GetRequiredService<BlogDbContext>();
+    await DataSeeder.SeedAsync(db);
+}
+
 app.Run();

@@ -12,9 +12,9 @@ namespace CollectionQuery.Models
         public string Content { get; private set; } = default!;
         public Guid CategoryId { get; private set; }
         //[JsonIgnore] // <-- prevent back-reference
-        public Category Category { get; set; } = default!;
+        public virtual Category Category { get; set; } = default!;
         public DateTime? PublishedAt { get; private set; }
-        public List<Comment> Comments { get; set; } = [];
+        public virtual ICollection<Comment> Comments { get; set; } = [];
         // setter methods are private to enforce immutability after creation
         public void SetTitle(string title) => Title = title;
         public void SetSlug(string slug) => Slug = slug;

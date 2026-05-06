@@ -11,8 +11,8 @@ namespace CollectionQuery.Models
         public string Slug { get; private set; } = default!;
         [MaxLength(1000)]
         public string? Description { get; private set; }
-        [JsonIgnore] // <-- prevent back-reference
-        public List<Post> Posts { get; set; } = [];
+        // [JsonIgnore] // <-- prevent back-reference
+        public virtual ICollection<Post> Posts { get; set; } = [];
         // setter methods are private to enforce immutability after creation
         public void SetName(string name) => Name = name;
         public void SetSlug(string slug) => Slug = slug;

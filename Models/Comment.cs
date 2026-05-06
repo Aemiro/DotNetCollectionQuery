@@ -5,7 +5,7 @@ namespace CollectionQuery.Models
     public class Comment : BaseEntity
     {
         public Guid PostId { get; private set; }
-        public Post Post { get; private set; } = default!;
+        public virtual Post Post { get; private set; } = default!;
         [Required, MaxLength(120)]
         public string AuthorName { get; private set; } = default!;
         [Required, MaxLength(4000)]

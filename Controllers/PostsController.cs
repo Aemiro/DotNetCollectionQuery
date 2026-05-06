@@ -40,8 +40,8 @@ namespace CollectionQuery.Controllers
         [HttpGet]
         public async Task<ActionResult<PagedResult<PostDto>>> GetAll([FromQuery()] CollectionQuery query)
         {
-            var result = await _svc.QueryAsync(_db.Posts,
-            query);
+            query.OrderBy = query.OrderBy ?? [new Order { Field = "CreatedAt", Direction = Direction.DESC }];
+            var result = await _svc.QueryAsync(_db.Posts, query);
 
             return Ok(result);
         }
