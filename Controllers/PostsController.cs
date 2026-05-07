@@ -11,11 +11,11 @@ namespace CollectionQuery.Controllers
     public class PostsController : ControllerBase
     {
         private readonly BlogDbContext _db;
-        private readonly CollectionQueryService _svc;
+        private readonly CollectionQueryService _collectionQueryService;
         public PostsController(BlogDbContext db)
         {
             _db = db;
-            _svc = new CollectionQueryService(new CollectionQueryOptions
+            _collectionQueryService = new CollectionQueryService(new CollectionQueryOptions
             {
                 UseProviderILike = true,
                 UseUnaccent = true, // set true only if CREATE EXTENSION unaccent;
@@ -41,7 +41,7 @@ namespace CollectionQuery.Controllers
         public async Task<ActionResult<PagedResult<PostDto>>> GetAll([FromQuery()] CollectionQuery query)
         {
             query.OrderBy = query.OrderBy ?? [new Order { Field = "CreatedAt", Direction = Direction.DESC }];
-            var result = await _svc.QueryAsync(_db.Posts, query);
+            var result = await _collectionQueryService.QueryAsync(_db.Posts, query);
 
             return Ok(result);
         }

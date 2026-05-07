@@ -36,9 +36,6 @@ namespace CollectionQuery
         /// </summary>
         public List<string>? Select { get; set; }
 
-        /// <summary>Reserved for future culture-specific behavior (e.g. collation or formatting).</summary>
-        public string? Locale { get; set; }
-
         /// <summary>Property names to deduplicate by before paging (first row per group is kept).</summary>
         public List<string>? GroupBy { get; set; }
 
@@ -51,8 +48,6 @@ namespace CollectionQuery
         public bool? Distinct { get; set; }
         /// <summary>Fields that define uniqueness when <see cref="Distinct"/> is true (server-side when supported).</summary>
         public List<string>? DistinctOn { get; set; }
-        /// <summary>Reserved for future caching hints; not used by the current implementation.</summary>
-        public int? Cache { get; set; }
     }
 
     /// <summary>Sort direction for <see cref="Order.Direction"/>.</summary>
@@ -83,7 +78,7 @@ namespace CollectionQuery
         /// <summary>Right-hand value as string (comma-separated for IN/BETWEEN as implemented by the filter builder).</summary>
         public string? Value { get; set; }
         /// <summary>Operator token; use <see cref="FilterOperators"/> for supported literals.</summary>
-        public string Operator { get; set; } = default!;
+        public required string Operator { get; set; }
     }
 
     /// <summary>String tokens for <see cref="FilterItem.Operator"/> understood by <see cref="Extensions.FilterHelper.ApplyFilters{TEntity}"/>.</summary>

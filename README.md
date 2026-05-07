@@ -20,6 +20,7 @@ Turn rich **HTTP query strings** into **Entity Framework Core** queries, then re
 - [API responses](#api-responses)
 - [Limitations](#limitations)
 - [Source layout](#source-layout)
+- [Running the sample (testing)](#running-the-sample-testing)
 - [License](#license)
 
 ---
@@ -31,7 +32,7 @@ Turn rich **HTTP query strings** into **Entity Framework Core** queries, then re
 | **What it does** | Binds a `CollectionQuery` model (usually from `[FromQuery]`) and runs it through `CollectionQueryService.QueryAsync<TEntity>()`. |
 | **Stack** | .NET 8+, ASP.NET Core, EF Core (sample uses EF Core 9 + Npgsql). |
 | **Typical output** | Either a paged list of dictionary rows, or `{ "count": N }` when `count=true`. |
-| **Try it in this repo** | `GET /api/posts` with query parameters, or **Swagger UI** in the Development environment. |
+| **Try it in this repo** | See [Running the sample (testing)](#running-the-sample-testing): `GET /api/posts`, Swagger, and example URLs. |
 
 ---
 
@@ -95,35 +96,23 @@ The service walks your `CollectionQuery` in this **fixed order**:
 
 ## Backend (ASP.NET Core)
 
-Bind the query string to **`CollectionQuery`** and pass it to **`CollectionQueryService`**:
+This repo’s reference implementation is **`Controllers/PostsController.cs`**: `GET /api/posts` binds **`CollectionQuery`** from the query string and runs **`QueryAsync`** on **`DbSet<Post>`**.
 
-```csharp
-[HttpGet]
-public async Task<IActionResult> GetItems([FromQuery] CollectionQuery query)
-{
-    var result = await _collectionQueryService.QueryAsync(_db.Items, query);
-    return Ok(result);
-}
+```40:46:Controllers/PostsController.cs
+        [HttpGet]
+        public async Task<ActionResult<PagedResult<PostDto>>> GetAll([FromQuery()] CollectionQuery query)
+        {
+            query.OrderBy = query.OrderBy ?? [new Order { Field = "CreatedAt", Direction = Direction.DESC }];
+            var result = await _collectionQueryService.QueryAsync(_db.Posts, query);
+
+            return Ok(result);
 ```
 
-ASP.NET Core understands **bracket notation** for lists and nested objects, for example `orderBy[0].field`, `filter[0][1].operator`, `searchFrom[0]`.
+The controller constructs **`CollectionQueryService`** with options aligned to that file (`UseProviderILike`, `UseUnaccent`, and commented allow-lists you can enable). ASP.NET Core binds bracket keys such as `orderBy[0].field`, `filter[0][1].operator`, and `searchFrom[0]`.
 
-**Service setup:**
+`QueryAsync` returns **`Task<object>`** — either `PagedResult<IDictionary<string, object?>>` or `{ Count = int }` when `count=true`. See [API responses](#api-responses).
 
-```csharp
-var options = new CollectionQueryOptions
-{
-    UseProviderILike = true,
-    // AllowedSelectFields = new(StringComparer.OrdinalIgnoreCase) { "Name", "Price", "Category.Name" },
-};
-
-var service = new CollectionQueryService(options);
-var result = await service.QueryAsync(dbContext.Items, query, cancellationToken);
-```
-
-`QueryAsync` returns **`Task<object>`** — either `PagedResult<IDictionary<string, object?>>` or an anonymous `{ Count = int }`. See [API responses](#api-responses).
-
-The sample creates **`new CollectionQueryService(...)`** in the controller; in production prefer **DI** (`AddScoped` / `AddSingleton`) and inject the service.
+For production, prefer **DI** (`AddScoped` / `AddSingleton`) instead of `new CollectionQueryService(...)` inside the controller.
 
 ### `CollectionQueryOptions`
 
@@ -142,47 +131,51 @@ For entity graphs with cycles, use **`ReferenceHandler.IgnoreCycles`** (see `Pro
 
 ## Frontend (query strings)
 
-Use **`GET`** with a query string. Keys use **indexed brackets** so ASP.NET can bind to `List<T>` and nested objects.
+All examples below target **`GET /api/posts`** from [`Controllers/PostsController.cs`](Controllers/PostsController.cs). Base URL when running locally: **`http://localhost:5132`** (see `Properties/launchSettings.json`).
 
-- **Illustrative path in examples:** `/api/items`
-- **This repository’s demo:** `/api/posts`
+Use **`GET`** with **indexed bracket** keys so ASP.NET Core binds to `CollectionQuery` lists and nested objects.
 
-### Full example (one line)
+### Fields you can use on `Post` (sample API)
+
+Paths are **case-insensitive**. Dot notation reaches **`Category`** (include it when filtering or selecting nested category fields).
+
+| Kind | Paths (examples) |
+|------|-------------------|
+| **Scalars on `Post`** | `Id`, `Title`, `Slug`, `Content`, `CategoryId`, `PublishedAt`, `CreatedAt`, `UpdatedAt` |
+| **Via `Category`** | `Category.Name`, `Category.Slug`, `Category.Description` |
+| **Includes** | `Category`, `Comments` (string must match EF navigation names; service uppercases the first character of the path) |
+
+Seeded data (after first run) includes posts such as **“Introducing CollectionQuery”** and **“A Day in Life”**, and categories **Technology** / **Lifestyle** — use those strings in `search` / `filter` to see matches.
+
+### Full example (one line, `PostsController`)
+
+Combines paging, search on title and content, explicit sort, filter on category name, include, select, and `groupBy` (works with seeded rows):
 
 ```http
-GET /api/items?top=10&skip=0&search=test&searchFrom[0]=name&searchFrom[1]=description&orderBy[0].field=name&orderBy[0].direction=ASC&orderBy[0].nulls=NULLS%20LAST&orderBy[1].field=price&orderBy[1].direction=DESC&orderBy[1].nulls=NULLS%20LAST&filter[0][0].field=name&filter[0][0].operator=LIKE&filter[0][0].value=phone&filter[0][1].field=category&filter[0][1].operator=%3D&filter[0][1].value=electronics&filter[1][0].field=price&filter[1][0].operator=%3E&filter[1][0].value=100&includes[0]=category&select[0]=name&select[1]=price&groupBy[0]=category&count=true&withArchived=false
+GET http://localhost:5132/api/posts?top=5&skip=0&search=Collection&searchFrom[0]=Title&searchFrom[1]=Content&orderBy[0].field=Title&orderBy[0].direction=ASC&filter[0][0].field=Category.Name&filter[0][0].operator=LIKE&filter[0][0].value=Tech&includes[0]=Category&select[0]=Title&select[1]=Slug&select[2]=Category.Name&groupBy[0]=CategoryId
 ```
+
+If you **omit `orderBy`**, the controller applies **`CreatedAt` DESC** before calling the service (see snippet under [Backend](#backend-aspnet-core)).
 
 ### Same example, parameter by parameter
 
-| Parameter | Value |
-|-----------|--------|
-| `top` | `10` |
+| Query parameter | Value |
+|-----------------|--------|
+| `top` | `5` |
 | `skip` | `0` |
-| `search` | `test` |
-| `searchFrom[0]` | `name` |
-| `searchFrom[1]` | `description` |
-| `orderBy[0].field` | `name` |
+| `search` | `Collection` |
+| `searchFrom[0]` | `Title` |
+| `searchFrom[1]` | `Content` |
+| `orderBy[0].field` | `Title` |
 | `orderBy[0].direction` | `ASC` |
-| `orderBy[0].nulls` | `NULLS LAST` (in URLs: `NULLS%20LAST`) |
-| `orderBy[1].field` | `price` |
-| `orderBy[1].direction` | `DESC` |
-| `orderBy[1].nulls` | `NULLS LAST` |
-| `filter[0][0].field` | `name` |
+| `filter[0][0].field` | `Category.Name` |
 | `filter[0][0].operator` | `LIKE` |
-| `filter[0][0].value` | `phone` |
-| `filter[0][1].field` | `category` |
-| `filter[0][1].operator` | `=` (often encoded as `%3D`) |
-| `filter[0][1].value` | `electronics` |
-| `filter[1][0].field` | `price` |
-| `filter[1][0].operator` | `>` (often encoded as `%3E`) |
-| `filter[1][0].value` | `100` |
-| `includes[0]` | `category` |
-| `select[0]` | `name` |
-| `select[1]` | `price` |
-| `groupBy[0]` | `category` |
-| `count` | `true` |
-| `withArchived` | `false` |
+| `filter[0][0].value` | `Tech` |
+| `includes[0]` | `Category` |
+| `select[0]` | `Title` |
+| `select[1]` | `Slug` |
+| `select[2]` | `Category.Name` |
+| `groupBy[0]` | `CategoryId` |
 
 ### Characters to URL-encode
 
@@ -194,36 +187,32 @@ GET /api/items?top=10&skip=0&search=test&searchFrom[0]=name&searchFrom[1]=descri
 
 Equality should be the single character **`=`** in `operator`, not `==`.
 
-### TypeScript example
+### TypeScript example (`GET /api/posts`)
 
 ```typescript
+const base = "http://localhost:5132/api/posts";
 const q = new URLSearchParams();
-q.set("top", "10");
+q.set("top", "5");
 q.set("skip", "0");
-q.set("search", "test");
-q.append("searchFrom[0]", "name");
-q.append("searchFrom[1]", "description");
-q.append("orderBy[0].field", "name");
+q.set("search", "Collection");
+q.append("searchFrom[0]", "Title");
+q.append("searchFrom[1]", "Content");
+q.append("orderBy[0].field", "Title");
 q.append("orderBy[0].direction", "ASC");
-q.append("filter[0][0].field", "name");
+q.append("filter[0][0].field", "Category.Name");
 q.append("filter[0][0].operator", "LIKE");
-q.append("filter[0][0].value", "phone");
-q.append("filter[0][1].field", "category");
-q.append("filter[0][1].operator", "=");
-q.append("filter[0][1].value", "electronics");
-q.append("includes[0]", "category");
-q.append("select[0]", "name");
-q.append("select[1]", "price");
-q.append("filter[1][0].field", "price");
-q.append("filter[1][0].operator", ">");
-q.append("filter[1][0].value", "100");
-q.set("count", "true");
-q.set("withArchived", "false");
+q.append("filter[0][0].value", "Tech");
+q.append("includes[0]", "Category");
+q.append("select[0]", "Title");
+q.append("select[1]", "Slug");
+q.append("select[2]", "Category.Name");
+q.append("groupBy[0]", "CategoryId");
 
-await fetch(`/api/items?${q.toString()}`);
+const res = await fetch(`${base}?${q.toString()}`);
+const data = await res.json();
 ```
 
-If binding looks wrong for your ASP.NET version, compare the generated string with **Swagger** “Try it out” or a quick integration test.
+Compare the built URL with **Swagger** `GET /api/posts` if any parameter fails to bind.
 
 ---
 
@@ -336,10 +325,16 @@ Examples:
 
 ```json
 {
-  "items": [{ "name": "Example", "price": 199.99, "category.name": "Electronics" }],
-  "totalCount": 42,
+  "items": [
+    {
+      "title": "Introducing CollectionQuery",
+      "slug": "introducing-collectionquery",
+      "category.name": "Technology"
+    }
+  ],
+  "totalCount": 2,
   "pageNumber": 1,
-  "pageSize": 10
+  "pageSize": 5
 }
 ```
 
@@ -372,7 +367,85 @@ Examples:
 | `Extensions/DistinctHelper.cs` | Distinct-on helper using `PathExpr` (for custom pipelines) |
 | `Extensions/DynamicSelectExtensions.cs` | `SelectDynamic` for EF-translatable dictionary `Select` (not used by the service today) |
 | `Extensions/QueryableExtensions.cs` | Small `IQueryable` helpers |
-| `Controllers/` | Demo `GET /api/posts` |
+| `Controllers/PostsController.cs` | Demo list: `GET /api/posts` + `[FromQuery] CollectionQuery`; other verbs for CRUD |
+
+---
+
+## Running the sample (testing)
+
+This repository is a runnable **ASP.NET Core** app. Startup runs **EF Core migrations** and **seeds** sample categories, posts, and comments if the database is empty.
+
+### Prerequisites
+
+| Requirement | Notes |
+|---------------|--------|
+| **.NET 8 SDK** | `dotnet --version` should report 8.x (project targets `net8.0`). |
+| **PostgreSQL** | Running locally or reachable from your machine. |
+| **Database** | Default connection string uses database name **`blogs`** on `localhost` (see `appsettings.json`). The app calls `MigrateAsync` on startup—it will create the database and schema if needed. |
+
+### 1. Configure PostgreSQL
+
+Edit **`appsettings.json`** → `ConnectionStrings:DefaultConnection`, or override with user secrets (recommended for passwords):
+
+```powershell
+cd path\to\DotNetCollectionQuery
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Database=blogs;Username=postgres;Password=YOUR_PASSWORD;"
+```
+
+Ensure the PostgreSQL user can create databases (or create an empty database named `blogs` first—migrations will still apply).
+
+### 2. Run the API
+
+From the project directory (where `CollectionQuery.csproj` is):
+
+```powershell
+dotnet run
+```
+
+Default HTTP URL (from `Properties/launchSettings.json`): **`http://localhost:5132`**. HTTPS profile also uses **`https://localhost:7100`**.
+
+If PostgreSQL is down or the connection string is wrong, startup fails when the **data seeder** runs (after `MigrateAsync`).
+
+### 3. Open Swagger (easiest manual test)
+
+With **`ASPNETCORE_ENVIRONMENT=Development`** (default for `dotnet run`):
+
+| Step | Action |
+|------|--------|
+| 1 | Browse to **`http://localhost:5132/swagger`**. |
+| 2 | Expand **`GET /api/posts`**. |
+| 3 | Fill query fields (or paste a query string) and execute. |
+
+Swagger is only registered in **Development** (see `Program.cs`).
+
+### 4. Try `GET /api/posts` from a browser or curl
+
+Same behavior as **`GetAll`** in [`Controllers/PostsController.cs`](Controllers/PostsController.cs): **`QueryAsync(_db.Posts, query)`** and default **`OrderBy`: `CreatedAt` DESC** when the client sends no `orderBy`.
+
+| Goal | Request |
+|------|---------|
+| Minimal list (default sort) | `GET http://localhost:5132/api/posts?top=10` |
+| Search title | `GET http://localhost:5132/api/posts?search=Collection&searchFrom[0]=Title&top=10` |
+| Include category + select fields | `GET http://localhost:5132/api/posts?includes[0]=Category&select[0]=Title&select[1]=Category.Name&top=5` |
+| Count only | `GET http://localhost:5132/api/posts?count=true` |
+| Filter category name (needs include) | `GET http://localhost:5132/api/posts?filter[0][0].field=Category.Name&filter[0][0].operator=LIKE&filter[0][0].value=Tech&includes[0]=Category` |
+| Full pipeline in one URL | See **Frontend** → *Full example (one line, PostsController)* in this README. |
+
+Seeded **`Post`** rows use titles **“Introducing CollectionQuery”** and **“A Day in Life”**; categories include **Technology** and **Lifestyle** (`Services/DataSeeder.cs`).
+
+### 5. Optional: migrations only (CLI)
+
+Migrations already run on startup. To apply from the command line without running the web app:
+
+```powershell
+dotnet ef database update
+```
+
+Requires the EF CLI tools (`dotnet tool install --global dotnet-ef`) and a valid connection string.
+
+### 6. Resetting test data
+
+To re-run the **seed** logic from scratch, drop the **`blogs`** database (or delete all rows in `Categories` / `Posts` / `Comments` so the seeder’s “any categories?” check allows a fresh seed—see `Services/DataSeeder.cs`), then start the app again.
 
 ---
 
